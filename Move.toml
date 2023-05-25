@@ -1,0 +1,10 @@
+[package]
+name = 'token_vesting'
+version = '1.0.0'
+
+[addresses]
+"my_addrx" = '0xbbc6ffb93bdc482b26413f7c9d313c9e5d77b303e12dd922c5cd8230cb8b6b98'
+[dependencies.AptosFramework]
+git = 'https://github.com/aptos-labs/aptos-core.git'
+rev = 'main'
+subdir = 'aptos-move/framework/aptos-framework'
