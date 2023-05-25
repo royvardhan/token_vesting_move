@@ -46,6 +46,8 @@ module my_addrx::TokenVesting
         let len_of_amt = vector::length(&amounts);
         let len_of_times = vector::length(&times);
         assert!(len_of_amt == len_of_times, 0);
+        let now = aptos_framework::timestamp::now_seconds();
+        assert_release_times_in_future(&times, now);
         let total_amount:u64 = 0;
         let i:u64 = 0;
         while (i < len_of_amt) {
@@ -54,7 +56,6 @@ module my_addrx::TokenVesting
             i = i + 1;
         };
         assert!(total_amount == total, 0);
-        // Todo  - Add checks for unix_timestamp always greater than now
         let released_amount = 0;
         let coin_addr = coin_address<CoinType>();
 
@@ -107,6 +108,15 @@ module my_addrx::TokenVesting
         coin::transfer<CoinType>(&vesting_signer_from_cap,receiver_addr,amount_to_release);
         vesting_schedule.released_amount= vesting_schedule.released_amount + amount_to_release;
         }
+
+    public fun assert_release_times_in_future(release_times: &vector<u64>, timestamp: u64) {
+        let length_of_schedule = vector::length(release_times);
+        let i = 0;
+        while (i < length_of_schedule) {
+            assert!(timestamp < *vector::borrow(release_times, i), 0);
+            i = i + 1;
+        };
+    }
 
     /// A helper function that returns the address of CoinType.
     fun coin_address<CoinType>(): address {

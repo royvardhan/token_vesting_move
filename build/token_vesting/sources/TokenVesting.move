@@ -46,15 +46,17 @@ module my_addrx::TokenVesting
         let len_of_amt = vector::length(&amounts);
         let len_of_times = vector::length(&times);
         assert!(len_of_amt == len_of_times, 0);
+        let now = aptos_framework::timestamp::now_seconds();
+        assert_release_times_in_future(&times, now);
         let total_amount:u64 = 0;
         let i:u64 = 0;
         while (i < len_of_amt) {
+            assert!(now < *vector::borrow(&times, i), 0);
             let amount = *vector::borrow(&amounts, i);
             total_amount = total_amount + amount;
             i = i + 1;
         };
         assert!(total_amount == total, 0);
-        // Todo  - Add checks for unix_timestamp always greater than now
         let released_amount = 0;
         let coin_addr = coin_address<CoinType>();
 
@@ -73,37 +75,49 @@ module my_addrx::TokenVesting
         coin::transfer<CoinType>(sender, escrow_addr, total);
     }
 
-    public entry fun release_fund<CoinType>(
-        receiver: &signer, 
-        sender:address, 
-        seeds: vector<u8>
-        ) acquires VestingCap, VestingSchedule {
-            let receiver_addr = signer::address_of(receiver);
-            assert!(exists<VestingCap>(sender), 0);
-            let map = borrow_global<VestingCap>(sender);
-            let vesting_addr = *simple_map::borrow(&map.vestingMap, &seeds);
-            let vesting_schedule = borrow_global_mut<VestingSchedule>(vesting_addr);
-            let vesting_signer_from_cap = account::create_signer_with_capability(&vesting_schedule.resource_cap);
-            assert!(vesting_schedule.sender == sender, 0);
-            assert!(vesting_schedule.receiver == receiver_addr, 0);
-            let len_of_schdule = vector::length(&vesting_schedule.release_amounts);
-            let amount_to_release = 0;
-            let i = 0;
-            let now = aptos_framework::timestamp::now_seconds();
-            while(i < len_of_schdule) {
-                let tmp_amount = *vector::borrow(&vesting_schedule.release_amounts, i);
-                let tmp_times = *vector::borrow(&vesting_schedule.release_times, i);
-                if (now >= tmp_times) {
-                    amount_to_release = amount_to_release + tmp_amount;
-                };
+    public entry fun release_fund<CoinType>
+    (
+    receiver: &signer, 
+    sender:address, 
+    seeds: vector<u8>
+    ) 
+    acquires VestingCap, VestingSchedule 
+    {
+        let receiver_addr = signer::address_of(receiver);
+        assert!(exists<VestingCap>(sender), 0);
+        let map = borrow_global<VestingCap>(sender);
+        let vesting_addr = *simple_map::borrow(&map.vestingMap, &seeds);
+        let vesting_schedule = borrow_global_mut<VestingSchedule>(vesting_addr);
+        let vesting_signer_from_cap = account::create_signer_with_capability(&vesting_schedule.resource_cap);
+        assert!(vesting_schedule.sender == sender, 0);
+        assert!(vesting_schedule.receiver == receiver_addr, 0);
+        let len_of_schdule = vector::length(&vesting_schedule.release_amounts);
+        let amount_to_release = 0;
+        let i = 0;
+        let now = aptos_framework::timestamp::now_seconds();
+        while(i < len_of_schdule) {
+            let tmp_amount = *vector::borrow(&vesting_schedule.release_amounts, i);
+            let tmp_times = *vector::borrow(&vesting_schedule.release_times, i);
+            if (now >= tmp_times) {
+                amount_to_release = amount_to_release + tmp_amount;
+            };
                 i = i+1;
             };
-            amount_to_release = amount_to_release -  vesting_schedule.released_amount;
-            if (!coin::is_account_registered<CoinType>(receiver_addr))
-            {managed_coin::register<CoinType>(receiver);};
-            coin::transfer<CoinType>(&vesting_signer_from_cap,receiver_addr,amount_to_release);
-            vesting_schedule.released_amount= vesting_schedule.released_amount + amount_to_release;
+        amount_to_release = amount_to_release -  vesting_schedule.released_amount;
+        if (!coin::is_account_registered<CoinType>(receiver_addr))
+        {managed_coin::register<CoinType>(receiver);};
+        coin::transfer<CoinType>(&vesting_signer_from_cap,receiver_addr,amount_to_release);
+        vesting_schedule.released_amount= vesting_schedule.released_amount + amount_to_release;
         }
+
+    public fun assert_release_times_in_future(release_times: &vector<u64>, timestamp: u64) {
+        let length_of_schedule = vector::length(release_times);
+        let i = 0;
+        while (i < length_of_schedule) {
+            assert!(timestamp < *vector::borrow(release_times, i), 0);
+            i = i + 1;
+        };
+    }
 
     /// A helper function that returns the address of CoinType.
     fun coin_address<CoinType>(): address {
