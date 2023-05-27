@@ -68,6 +68,7 @@ module my_addrx::TokenVesting
         amount_to_release
     }
 
+    // A helper function that returns the address of CoinType.
     fun coin_address<CoinType>(): address {
         let type_info = type_info::type_of<CoinType>();
         type_info::account_address(&type_info)
@@ -185,4 +186,5 @@ module my_addrx::TokenVesting
         coin::transfer<CoinType>(&vesting_signer_from_cap, sender_addr, schedule.total_amount);
         simple_map::remove(&mut schedules.scheduleMap, &receiver);
     }
+
 }
