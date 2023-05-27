@@ -71,4 +71,36 @@ The module provides several public entry functions:
 
 ### `create_schedule<CoinType>`
 
-This function is used to create a vest
+This function is used to create a vesting schedule. It takes the following parameters:
+- `sender`: The signer of the transaction and owner of the schedule.
+- `receiver`: The address of the schedule receiver.
+- `release_amounts`: A vector of release amounts corresponding to each release time.
+- `release_times`: A vector of release times (timestamps) indicating when each amount can be claimed.
+- `total_amount`: The total amount of tokens to be vested.
+- `seeds`: A vector of bytes used for creating a resource account.
+
+The function performs various validations, creates a vesting schedule, stores it in the `Schedules` struct, registers the `CoinType` with the associated signer capability, and transfers the total amount of tokens to the vesting resource account.
+
+### `accept_schedule<CoinType>`
+
+This function is used by the receiver to accept a vesting schedule from the sender. It takes the following parameters:
+- `receiver`: The signer accepting the schedule.
+- `sender`: The address of the schedule sender.
+
+The function performs validations to ensure the sender and receiver addresses are valid, checks if the schedule exists in the sender's schedules, and marks the schedule as active.
+
+### `claim_unlocked_fund<CoinType>`
+
+This function allows the receiver to claim unlocked funds from the sender. It takes the following parameters:
+- `receiver`: The signer claiming the funds.
+- `sender`: The address of the schedule sender.
+
+The function performs validations to ensure the sender and receiver addresses are valid, checks if the schedule exists in the sender's schedules, calculates the amount of unlocked funds, transfers the funds to the receiver's account, and updates the released amount in the schedule.
+
+### `cancel_schedule<CoinType>`
+
+This function allows the sender to cancel a vesting schedule from the receiver. It takes the following parameters:
+- `sender`: The signer canceling the schedule.
+- `receiver`: The address of the schedule receiver.
+
+The function performs validations to ensure the sender and receiver addresses are valid, checks if the schedule exists in the sender's schedules, transfers the total amount of tokens back to the sender, and removes the schedule from the `Schedules` struct.
