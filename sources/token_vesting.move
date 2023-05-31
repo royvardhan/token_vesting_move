@@ -218,10 +218,12 @@ module my_addrx::TokenVesting
             true
         );
         let release_amounts= vector<u64>[10,20,30];
-        let release_times= vector<u64>[1685467762,1685467763,1685467764];
+        // Release times are set to 1st Dec 2023 06:56:47 GMT with 1 second difference between each release
+        let release_times= vector<u64>[1701413807,1701413808,1701413809];
         let total_amount = 60;
         let seeds = vector<u8>[1,2,3];
         aptos_framework::managed_coin::register<CustomToken>(&creater);
+        aptos_framework::managed_coin::register<CustomToken>(&receiver);
         aptos_framework::managed_coin::mint<CustomToken>(&token_vesting, sender_addr, total_amount);
 
         // Check the balance of the sender before creating the schedule
@@ -247,17 +249,17 @@ module my_addrx::TokenVesting
         // Start claiming the funds
         // Fast forward the time to the release times
         // Assert the balance of the receiver after each claim
-        let first_claim_time = 1685467762;
+        let first_claim_time = 1701413807;
         timestamp::fast_forward_seconds(first_claim_time);
         claim_unlocked_fund<CustomToken>(&receiver, sender_addr);
         let balance_of_receiver = aptos_framework::coin::balance<CustomToken>(receiver_addr);
         assert!(balance_of_receiver == 10, 6);
-        let second_claim_time = 1685467763;
+        let second_claim_time = 1701413808;
         timestamp::fast_forward_seconds(second_claim_time - first_claim_time);
         claim_unlocked_fund<CustomToken>(&receiver, sender_addr);
         let balance_of_receiver = aptos_framework::coin::balance<CustomToken>(receiver_addr);
         assert!(balance_of_receiver == 30, 6);
-        let third_claim_time = 1685467764;
+        let third_claim_time = 1701413809;
         timestamp::fast_forward_seconds(third_claim_time - second_claim_time);
         claim_unlocked_fund<CustomToken>(&receiver, sender_addr);
         let balance_of_receiver = aptos_framework::coin::balance<CustomToken>(receiver_addr);
@@ -285,7 +287,7 @@ module my_addrx::TokenVesting
             true
         );
         let release_amounts= vector<u64>[10,20,30];
-        let release_times= vector<u64>[1685467762,1685467763,1685467764];
+        let release_times= vector<u64>[1701413807,1701413808,1701413809];
         let total_amount = 60;
         let seeds = vector<u8>[1,2,3];
         aptos_framework::managed_coin::register<CustomToken>(&creater);
