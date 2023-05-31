@@ -7,6 +7,8 @@ module my_addrx::TokenVesting
     use aptos_framework::managed_coin;
     use aptos_framework::coin;
     use aptos_std::type_info;
+    use aptos_framework::timestamp;
+
 
     // Storing Information of a Vesting Schedule
     struct VestingSchedule has store, drop {
@@ -33,6 +35,9 @@ module my_addrx::TokenVesting
     const ENO_SENDER_MISMATCH :u64 = 3;
     const ENO_RECEIVER_MISMATCH: u64 = 4;
     const ENO_SCHEDULE_ACTIVE: u64 = 5;
+    const ENO_BALANCE_MISMATCH: u64 = 6;
+    const ENO_SCHEDULE_NOT_ACTIVE: u64 = 7;
+
 
     fun assert_release_times_in_future(release_times: &vector<u64>, timestamp: u64) {
         let length_of_schedule = vector::length(release_times);
@@ -185,6 +190,125 @@ module my_addrx::TokenVesting
         let vesting_signer_from_cap = account::create_signer_with_capability(&schedule.resource_cap);
         coin::transfer<CoinType>(&vesting_signer_from_cap, sender_addr, schedule.total_amount);
         simple_map::remove(&mut schedules.scheduleMap, &receiver);
+    }
+
+    #[view] 
+    public fun get_schdule_by_receiver(sender: address, receiver: address): (u64, u64, bool) acquires Schedules {
+        let schedules = borrow_global<Schedules>(sender);
+        assert!(simple_map::contains_key(&schedules.scheduleMap, &receiver), 4);
+        let schedule = simple_map::borrow(&schedules.scheduleMap, &receiver);
+        (schedule.total_amount, schedule.released_amount, schedule.active)
+    } 
+
+    #[tests_only]
+    struct CustomToken {}
+    #[test(creater = @0xa11ce, receiver = @0xb0b, token_vesting = @my_addrx, aptos_framework = @0x1)]
+    fun test_flow_without_cancel(creater: signer, receiver: signer, token_vesting: signer, aptos_framework: signer) acquires Schedules{
+
+        // setup
+        let sender_addr = signer::address_of(&creater);
+        let receiver_addr = signer::address_of(&receiver);
+        aptos_framework::account::create_account_for_test(sender_addr);
+        aptos_framework::account::create_account_for_test(receiver_addr);
+        aptos_framework::managed_coin::initialize<CustomToken>(
+            &token_vesting,
+            b"Custom Token",
+            b"CUT",
+            10,
+            true
+        );
+        let release_amounts= vector<u64>[10,20,30];
+        let release_times= vector<u64>[1685467762,1685467763,1685467764];
+        let total_amount = 60;
+        let seeds = vector<u8>[1,2,3];
+        aptos_framework::managed_coin::register<CustomToken>(&creater);
+        aptos_framework::managed_coin::mint<CustomToken>(&token_vesting, sender_addr, total_amount);
+
+        // Check the balance of the sender before creating the schedule
+        let balance_of_sender = aptos_framework::coin::balance<CustomToken>(sender_addr);
+        assert!(balance_of_sender == 60, 6);
+
+        // Set the time for testing environment
+        // Can only be set by the aptos_framework
+        // Default time is 0
+        timestamp::set_time_has_started_for_testing(&aptos_framework);
+
+        // Create a schedule
+        create_schedule<CustomToken>(&creater, receiver_addr, release_amounts, release_times, total_amount, seeds);
+        // Accept the schedule
+        accept_schedule<CustomToken>(&receiver, sender_addr);
+        let (_, _, active) = get_schdule_by_receiver(sender_addr, receiver_addr);
+        let balance_of_receiver = aptos_framework::coin::balance<CustomToken>(receiver_addr);
+       
+        // Assert that the schedule is active and the balance of the receiver is 0
+        assert!(active == true, 7);
+        assert!(balance_of_receiver == 0, 6);
+
+        // Start claiming the funds
+        // Fast forward the time to the release times
+        // Assert the balance of the receiver after each claim
+        let first_claim_time = 1685467762;
+        timestamp::fast_forward_seconds(first_claim_time);
+        claim_unlocked_fund<CustomToken>(&receiver, sender_addr);
+        let balance_of_receiver = aptos_framework::coin::balance<CustomToken>(receiver_addr);
+        assert!(balance_of_receiver == 10, 6);
+        let second_claim_time = 1685467763;
+        timestamp::fast_forward_seconds(second_claim_time - first_claim_time);
+        claim_unlocked_fund<CustomToken>(&receiver, sender_addr);
+        let balance_of_receiver = aptos_framework::coin::balance<CustomToken>(receiver_addr);
+        assert!(balance_of_receiver == 30, 6);
+        let third_claim_time = 1685467764;
+        timestamp::fast_forward_seconds(third_claim_time - second_claim_time);
+        claim_unlocked_fund<CustomToken>(&receiver, sender_addr);
+        let balance_of_receiver = aptos_framework::coin::balance<CustomToken>(receiver_addr);
+        assert!(balance_of_receiver == 60, 6);
+
+        // Assert that the schedule struct is being updated correctly
+        let (total_amount, released_amount, _) = get_schdule_by_receiver(sender_addr, receiver_addr);
+        assert!(total_amount == 60, 6);
+        assert!(released_amount == 60, 6);
+    }
+
+    #[test(creater = @0xa11ce, receiver = @0xb0b, token_vesting = @my_addrx, aptos_framework = @0x1)]
+    fun test_flow_with_cancel(creater: signer, receiver: signer, token_vesting: signer, aptos_framework: signer) acquires Schedules{
+
+        // setup
+        let sender_addr = signer::address_of(&creater);
+        let receiver_addr = signer::address_of(&receiver);
+        aptos_framework::account::create_account_for_test(sender_addr);
+        aptos_framework::account::create_account_for_test(receiver_addr);
+        aptos_framework::managed_coin::initialize<CustomToken>(
+            &token_vesting,
+            b"Custom Token",
+            b"CUT",
+            10,
+            true
+        );
+        let release_amounts= vector<u64>[10,20,30];
+        let release_times= vector<u64>[1685467762,1685467763,1685467764];
+        let total_amount = 60;
+        let seeds = vector<u8>[1,2,3];
+        aptos_framework::managed_coin::register<CustomToken>(&creater);
+        aptos_framework::managed_coin::mint<CustomToken>(&token_vesting, sender_addr, total_amount);
+        let balance_of_sender = aptos_framework::coin::balance<CustomToken>(sender_addr);
+        assert!(balance_of_sender == 60, 6);
+
+        // Set the time for testing environment
+        // Can only be set by the aptos_framework
+        // Default time is 0
+        timestamp::set_time_has_started_for_testing(&aptos_framework);
+
+        // Create a schedule
+        create_schedule<CustomToken>(&creater, receiver_addr, release_amounts, release_times, total_amount, seeds);
+        let balance_of_sender = aptos_framework::coin::balance<CustomToken>(sender_addr);
+        assert!(balance_of_sender == 0, 6);
+
+        // Cancel the schedule
+        cancel_schedule<CustomToken>(&creater, receiver_addr);
+        
+        // Assert that the balance of the sender is 60
+        let balance_of_sender = aptos_framework::coin::balance<CustomToken>(sender_addr);
+        assert!(balance_of_sender == 60, 6);
     }
 
 }
